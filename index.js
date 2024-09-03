@@ -23,6 +23,7 @@ async function run() {
         console.log("Connected to MongoDB");
 
         const db = client.db('cleanHub');
+        const users = db.collection('users');
         const products = db.collection('products');
 
         // User Registration
@@ -30,7 +31,7 @@ async function run() {
             const { name, email, password } = req.body;
 
             // Check if email already exists
-            const existingUser = await collection.findOne({ email });
+            const existingUser = await users.findOne({ email });
             if (existingUser) {
                 return res.status(400).json({
                     success: false,
@@ -42,7 +43,7 @@ async function run() {
             const hashedPassword = await bcrypt.hash(password, 10);
 
             // Insert user into the database
-            await collection.insertOne({ name, email, password: hashedPassword });
+            await users.insertOne({ name, email, password: hashedPassword, role: "USER" });
 
             res.status(201).json({
                 success: true,
@@ -55,7 +56,7 @@ async function run() {
             const { email, password } = req.body;
 
             // Find user by email
-            const user = await collection.findOne({ email });
+            const user = await users.findOne({ email });
             if (!user) {
                 return res.status(401).json({ message: 'Invalid email or password' });
             }
@@ -67,7 +68,7 @@ async function run() {
             }
 
             // Generate JWT token
-            const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET, { expiresIn: process.env.EXPIRES_IN });
+            const token = jwt.sign({ email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: process.env.EXPIRES_IN });
 
             res.json({
                 success: true,
@@ -141,6 +142,41 @@ async function run() {
                 success: true,
                 message: 'Trending Product is Fetching',
                 data
+            });
+        })
+
+        app.post("/addProduct", async (req, res) => {
+            const product = req.body
+            const data = await products.insertOne(product)
+            res.status(201).json({
+                success: true,
+                message: 'Product is Created',
+                data
+            });
+        })
+
+        app.delete("/product/:id", async (req, res) => {
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            const result = await products.deleteOne(query)
+            res.status(201).json({
+                success: true,
+                message: 'Product is Deleted',
+            });
+        })
+
+        app.put("/product/:id", async (req, res) => {
+            const id = req.params.id
+            const updatedProduct = req.body
+            const filter = { _id: new ObjectId(id) }
+            const options = { upsert: true };
+            const updateProduct = { $set: updatedProduct }
+
+            const result = await products.updateOne(filter, updateProduct, options)
+            res.status(201).json({
+                success: true,
+                message: 'Product is Deleted',
+                result
             });
         })
 
